@@ -2673,7 +2673,17 @@ static void SpriteCB_MoveWildMonToRight(struct Sprite *sprite)
 {
     if ((gIntroSlideFlags & 1) == 0)
     {
-        sprite->x2 += 2;
+        //sprite->x2 += 2;
+        //Make Some changes to the battle with the wild Pokemon
+        if (sprite->x2 < 10)
+        {
+            sprite->x2 += 6;
+        }
+        else
+        {
+            sprite->x2 += 2;
+        }
+        
         if (sprite->x2 == 0)
         {
             sprite->callback = SpriteCB_WildMonShowHealthbox;

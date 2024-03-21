@@ -6,6 +6,8 @@ void FreeBattleSpritesData(void);
 u16 ChooseMoveAndTargetInBattlePalace(void);
 void SpriteCB_WaitForBattlerBallReleaseAnim(struct Sprite *sprite);
 void SpriteCB_TrainerSlideIn(struct Sprite *sprite);
+void SpriteCB_TransitionTrainerSlideIn(struct Sprite *sprite); //New function for fast battle slide
+void SpriteCB_TransitionPlayerSlideIn(struct Sprite *sprite); //New function for fast battle slide
 void InitAndLaunchChosenStatusAnimation(bool8 isStatus2, u32 status);
 bool8 TryHandleLaunchBattleTableAnimation(u8 activeBattlerId, u8 attacker, u8 target, u8 tableId, u16 argument);
 void InitAndLaunchSpecialAnimation(u8 activeBattlerId, u8 attacker, u8 target, u8 tableId);
