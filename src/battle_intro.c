@@ -315,7 +315,6 @@ static void BattleIntroSlide2(u8 taskId)
             {
                 SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG1 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_OBJ);
                 SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(15, 0));
-                SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(5, 0));
                 SetGpuReg(REG_OFFSET_BLDY, 0);
             }
         }
