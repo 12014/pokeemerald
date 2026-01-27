@@ -45,6 +45,20 @@ struct CompressedSpritePalette
     u16 tag;
 };
 
+//修改，对战用
+struct CompressedSpriteSheet2
+{
+    const u8 *data;  // LZ77 compressed pixel data
+    u16 size;        // Uncompressed size of pixel data
+    u16 tag;
+};
+
+struct CompressedSpritePalette2
+{
+    const u16 *data;  // LZ77 compressed palette data
+    u16 tag;
+};
+
 struct AnimFrameCmd
 {
     // If the sprite has an array of images, this is the array index.

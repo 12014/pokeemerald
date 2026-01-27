@@ -95,7 +95,9 @@ EWRAM_DATA static u16 sTrainerBattleMode = 0;
 EWRAM_DATA u16 gTrainerBattleOpponent_A = 0;
 EWRAM_DATA u16 gTrainerBattleOpponent_B = 0;
 EWRAM_DATA u16 gPartnerTrainerId = 0;
-EWRAM_DATA static u16 sTrainerObjectEventLocalId = 0;
+//EWRAM_DATA static u16 sTrainerObjectEventLocalId = 0;
+//FOR MODIFIED MUGSHOTS
+EWRAM_DATA u16 sTrainerObjectEventLocalId = 0;
 EWRAM_DATA static u8 *sTrainerAIntroSpeech = NULL;
 EWRAM_DATA static u8 *sTrainerBIntroSpeech = NULL;
 EWRAM_DATA static u8 *sTrainerADefeatSpeech = NULL;
@@ -818,8 +820,23 @@ static u8 GetTrainerBattleTransition(void)
     if (gTrainerBattleOpponent_A == TRAINER_SECRET_BASE)
         return B_TRANSITION_CHAMPION;
 
+    //新增MUGSHOT战斗转场相关
+    if (gTrainers[gTrainerBattleOpponent_A].hasCustomTransition)
+        return B_TRANSITION_MUGSHOT;
+
     if (gTrainers[gTrainerBattleOpponent_A].trainerClass == TRAINER_CLASS_ELITE_FOUR)
     {
+        //移植过来的转场测试切换
+        //类型一
+        //VarSet(VAR_PRE_BATTLE_MUGSHOT_STYLE, MUGSHOT_TWO_BARS);
+        //VarSet(VAR_PRE_BATTLE_MUGSHOT_SPRITE, MUGSHOT_PLAYER);
+        //类型二
+        //VarSet(VAR_PRE_BATTLE_MUGSHOT_STYLE, MUGSHOT_BIG);
+		//VarSet(VAR_PRE_BATTLE_MUGSHOT_SPRITE, MUGSHOT_PLAYER);
+        //类型三
+        //VarSet(VAR_PRE_BATTLE_MUGSHOT_STYLE, MUGSHOT_BIG);
+		//VarSet(VAR_PRE_BATTLE_MUGSHOT_SPRITE, MUGSHOT_VS_SYMBOL);
+
         if (gTrainerBattleOpponent_A == TRAINER_SIDNEY)
             return B_TRANSITION_SIDNEY;
         if (gTrainerBattleOpponent_A == TRAINER_PHOEBE)
@@ -831,8 +848,8 @@ static u8 GetTrainerBattleTransition(void)
         return B_TRANSITION_CHAMPION;
     }
 
-    if (gTrainers[gTrainerBattleOpponent_A].trainerClass == TRAINER_CLASS_CHAMPION)
-        return B_TRANSITION_CHAMPION;
+    /*if (gTrainers[gTrainerBattleOpponent_A].trainerClass == TRAINER_CLASS_CHAMPION)
+        return B_TRANSITION_CHAMPION;*/
 
     if (gTrainers[gTrainerBattleOpponent_A].trainerClass == TRAINER_CLASS_TEAM_MAGMA
         || gTrainers[gTrainerBattleOpponent_A].trainerClass == TRAINER_CLASS_MAGMA_LEADER

@@ -20,10 +20,18 @@
 #include "task.h"
 #include "trig.h"
 #include "util.h"
+#include "constants/battle_transition.h"
 #include "constants/field_effects.h"
 #include "constants/songs.h"
 #include "constants/trainers.h"
 #include "constants/rgb.h"
+
+#include "data.h"
+#include "battle_setup.h"
+#include "battle_tower.h"
+#include "graphics.h"
+#include "event_data.h"
+#include "battle_anim.h"
 
 #define PALTAG_UNUSED_MUGSHOT 0x100A
 
@@ -342,6 +350,8 @@ static const TaskFunc sTasks_Intro[B_TRANSITION_COUNT] =
     [0 ... B_TRANSITION_COUNT - 1] = &Task_Intro
 };
 
+static void Task_Mugshot(u8 taskId);
+
 // After the intro each transition has a unique main task.
 // This task will call the functions that do the transition effects.
 static const TaskFunc sTasks_Main[B_TRANSITION_COUNT] =
@@ -388,7 +398,135 @@ static const TaskFunc sTasks_Main[B_TRANSITION_COUNT] =
     [B_TRANSITION_FRONTIER_CIRCLES_CROSS_IN_SEQ] = Task_FrontierCirclesCrossInSeq,
     [B_TRANSITION_FRONTIER_CIRCLES_ASYMMETRIC_SPIRAL_IN_SEQ] = Task_FrontierCirclesAsymmetricSpiralInSeq,
     [B_TRANSITION_FRONTIER_CIRCLES_SYMMETRIC_SPIRAL_IN_SEQ] = Task_FrontierCirclesSymmetricSpiralInSeq,
+    [B_TRANSITION_MUGSHOT] = Task_Mugshot,
 };
+
+//新增战斗转场
+//VS标志扩大动画（适用于双打对战）
+static const union AffineAnimCmd sSpriteAffineAnim_VSSymbolExpand[] =
+{
+    AFFINEANIMCMD_FRAME(8, 8, 0, 0),
+    AFFINEANIMCMD_FRAME(8, 8, 0, 12),
+    AFFINEANIMCMD_FRAME(16, 16, 0, 12),
+    AFFINEANIMCMD_END,
+};
+static const union AffineAnimCmd * const sSpriteAffineAnims_VSSymbolExpand[] = {sSpriteAffineAnim_VSSymbolExpand};
+//DP标准VS标志缩放动画
+static const union AffineAnimCmd sSpriteAffineAnim_VSSymbolDP[] =
+{
+    //大小以十六进制表示，0x100为原本大小，0x200为2倍大
+    AFFINEANIMCMD_FRAME(0x200, 0x200, 0, 0),//原本的2倍（最开始）
+    AFFINEANIMCMD_FRAME(0, 0, 0, 3),//暂停3帧
+    AFFINEANIMCMD_FRAME(-16, -16, 0, 16),//原本的1倍（缩放），这里第四个参数最大只能16的
+    AFFINEANIMCMD_END,
+};
+static const union AffineAnimCmd * const sSpriteAffineAnims_VSSymbolDP[] = {sSpriteAffineAnim_VSSymbolDP};
+//DP标准VS标志的影子（参考HGSS）
+static const union AffineAnimCmd sSpriteAffineAnim_VSSymbolShadowDP[] =
+{
+    //大小以十六进制表示，0x100为原本大小，0x200为2倍大
+    AFFINEANIMCMD_FRAME(0x200, 0x200, 0, 0),//原本的2倍（最开始）
+    AFFINEANIMCMD_FRAME(0, 0, 0, 16),//暂停16帧
+    AFFINEANIMCMD_FRAME(-32, -32, 0, 8),//原本的1倍（缩放，这里由于前面有缩放的关系写成-32）
+    AFFINEANIMCMD_END,//总帧数24帧，因为是影子，所以慢两帧
+};
+static const union AffineAnimCmd * const sSpriteAffineAnims_VSSymbolShadowDP[] = {sSpriteAffineAnim_VSSymbolShadowDP};
+
+//BIG标准VS标志缩放动画
+static const union AffineAnimCmd sSpriteAffineAnim_VSSymbolBig[] =
+{
+    //大小以十六进制表示，0x100为原本大小，0x200为2倍大
+    AFFINEANIMCMD_FRAME(0x200, 0x200, 0, 0),//原本的2倍（最开始）
+    AFFINEANIMCMD_FRAME(0, 0, 0, 6),//暂停6帧
+    AFFINEANIMCMD_FRAME(-8, -8, 0, 16),//原本的1.5倍（缩放），这里第四个参数最大只能16的
+    AFFINEANIMCMD_END,
+};
+static const union AffineAnimCmd * const sSpriteAffineAnims_VSSymbolBig[] = {sSpriteAffineAnim_VSSymbolBig};
+//BIG标准VS标志的影子（参考HGSS）
+static const union AffineAnimCmd sSpriteAffineAnim_VSSymbolShadowBig[] =
+{
+    //大小以十六进制表示，0x100为原本大小，0x200为2倍大
+    AFFINEANIMCMD_FRAME(0x200, 0x200, 0, 0),//原本的2倍（最开始）
+    AFFINEANIMCMD_FRAME(0, 0, 0, 16),//暂停16帧
+    AFFINEANIMCMD_FRAME(0, 0, 0, 4),//暂停4帧
+    AFFINEANIMCMD_FRAME(-16, -16, 0, 8),//原本的1.5倍（缩放，这里由于前面有缩放的关系写成-32）
+    AFFINEANIMCMD_END,//总帧数24帧，因为是影子，所以慢两帧
+};
+static const union AffineAnimCmd * const sSpriteAffineAnims_VSSymbolShadowBig[] = {sSpriteAffineAnim_VSSymbolShadowBig};
+//VS标志的OAM数据
+static const struct OamData sOam_VSSymbol =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_DOUBLE,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(64x64),
+    .x = 0,
+    .matrixNum = 0,
+    .size = SPRITE_SIZE(64x64),
+    .tileNum = 0,
+    .priority = 0,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+//VS标志的影子的OAM数据
+static const struct OamData sOam_VSSymbolShadow =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_DOUBLE,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(64x64),
+    .x = 0,
+    .matrixNum = 0,
+    .size = SPRITE_SIZE(64x64),
+    .tileNum = 0,
+    .priority = 0,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+//VS标志震动动画，修改自「气息钳」技能动画
+static void SpriteCB_ShakeVSSymbol(struct Sprite *sprite)
+{
+    if (sprite->affineAnimEnded)
+    {
+        //后面的参数「40」控制频率，越小频率越慢
+        //sprite->data[1] = (sprite->data[1] + 40) & 0xFF;
+        sprite->data[1] = (sprite->data[1] + 400) & 0xFF;
+        //后面的参数是震动幅度，参数越大，震动幅度越大
+        //sprite->x2 = Sin(sprite->data[1], 2);
+        //sprite->y2 = Sin(sprite->data[1], 2);
+        sprite->x2 = Sin(sprite->data[1], 2.7);
+        sprite->y2 = Cos(sprite->data[1], 2.7);
+    }
+}
+
+//VS标志震动动画（BIG版限定）
+static void SpriteCB_ShakeVSSymbolBig(struct Sprite *sprite)
+{
+    if (sprite->affineAnimEnded)
+    {
+        //后面的参数「40」控制频率，越小频率越慢
+        //sprite->data[1] = (sprite->data[1] + 40) & 0xFF;
+        sprite->data[1] = (sprite->data[1] + 400) & 0xFF;
+        //后面的参数是震动幅度，参数越大，震动幅度越大
+        //sprite->x2 = Sin(sprite->data[1], 2);
+        //sprite->y2 = Sin(sprite->data[1], 2);
+        sprite->x2 = Sin(sprite->data[1], 3.4);
+        sprite->y2 = Cos(sprite->data[1], 3.4);
+    }
+}
+//VS标志的影子的消失脚本，当缩放完成后使其消失，消除重影效果
+static void SpriteCB_VSSymbolShadow(struct Sprite *sprite)
+{
+    if (sprite->affineAnimEnded)
+    {
+        
+        DestroyAnimSprite(sprite);
+    }
+}
 
 static const TransitionStateFunc sTaskHandlers[] =
 {
@@ -548,6 +686,8 @@ static const u8 sMugshotsTrainerPicIDsTable[MUGSHOTS_COUNT] =
     [MUGSHOT_GLACIA]   = TRAINER_PIC_ELITE_FOUR_GLACIA,
     [MUGSHOT_DRAKE]    = TRAINER_PIC_ELITE_FOUR_DRAKE,
     [MUGSHOT_CHAMPION] = TRAINER_PIC_CHAMPION_WALLACE,
+    [MUGSHOT_COOLTRAINER_F] = TRAINER_PIC_COOLTRAINER_F,
+        [MUGSHOT_COOLTRAINER_M] = TRAINER_PIC_COOLTRAINER_M,
 };
 static const s16 sMugshotsOpponentRotationScales[MUGSHOTS_COUNT][2] =
 {
@@ -556,6 +696,8 @@ static const s16 sMugshotsOpponentRotationScales[MUGSHOTS_COUNT][2] =
     [MUGSHOT_GLACIA] =   {0x1B0, 0x1B0},
     [MUGSHOT_DRAKE] =    {0x1A0, 0x1A0},
     [MUGSHOT_CHAMPION] = {0x188, 0x188},
+    [MUGSHOT_COOLTRAINER_F] =   {0x200, 0x200},
+    [MUGSHOT_COOLTRAINER_M] =   {0x200, 0x200},
 };
 static const s16 sMugshotsOpponentCoords[MUGSHOTS_COUNT][2] =
 {
@@ -564,6 +706,8 @@ static const s16 sMugshotsOpponentCoords[MUGSHOTS_COUNT][2] =
     [MUGSHOT_GLACIA] =   {-4,  4},
     [MUGSHOT_DRAKE] =    { 0,  5},
     [MUGSHOT_CHAMPION] = {-8,  7},
+    [MUGSHOT_COOLTRAINER_F] =   { 0,  0},
+    [MUGSHOT_COOLTRAINER_M] =   { 0,  0},
 };
 
 static const TransitionSpriteCallback sMugshotTrainerPicFuncs[] =
@@ -900,7 +1044,10 @@ static const u16 *const sOpponentMugshotsPals[MUGSHOTS_COUNT] =
     [MUGSHOT_PHOEBE] = sMugshotPal_Phoebe,
     [MUGSHOT_GLACIA] = sMugshotPal_Glacia,
     [MUGSHOT_DRAKE] = sMugshotPal_Drake,
-    [MUGSHOT_CHAMPION] = sMugshotPal_Champion
+    [MUGSHOT_CHAMPION] = sMugshotPal_Champion,
+    [MUGSHOT_COOLTRAINER_F] = sMugshotPal_Sidney,
+    [MUGSHOT_COOLTRAINER_M] = sMugshotPal_Drake,
+
 };
 
 static const u16 *const sPlayerMugshotsPals[GENDER_COUNT] =
@@ -2252,9 +2399,24 @@ static void VBlankCB_Wave(void)
 #define tBottomBannerX      data[3]
 #define tTimer              data[3] // Re-used
 #define tFadeSpread         data[4]
+//#define tOpponentSpriteId   data[13]
+//#define tPlayerSpriteId     data[14]
+//#define tMugshotId          data[15]
+//MODIFIED FOR NEW MUGSHOT SYSTEM
+/*#define tVSSymbol  			data[10]
+#define tPartnerSpriteId  	data[11]
+#define tOpponentSpriteId2  data[12]
 #define tOpponentSpriteId   data[13]
-#define tPlayerSpriteId     data[14]
-#define tMugshotId          data[15]
+#define tPlayerSpriteId	   data[14]
+#define tMugshotId 			data[15]*/
+//这里对战斗转场任务参数进行再定义
+#define tPartnerSpriteId  	data[10]
+#define tOpponentSpriteId2  data[11]
+#define tOpponentSpriteId   data[12]
+#define tVSSymbol           data[13]
+#define tVSSymbolShadow     data[14]
+#define tPlayerSpriteId	    data[15]
+#define tMugshotId 			data[16]
 
 // Sprite data for trainer sprites in mugshots
 #define sState       data[0]
@@ -2262,6 +2424,13 @@ static void VBlankCB_Wave(void)
 #define sSlideAccel  data[2]
 #define sDone        data[6]
 #define sSlideDir    data[7]
+
+//修改，新增mugshot转场动画相关
+static void Task_Mugshot(u8 taskId)
+{
+    gTasks[taskId].tMugshotId = VarGet(VAR_MUGSHOT_ID);
+    DoMugshotTransition(taskId);
+}
 
 static void Task_Sidney(u8 taskId)
 {
@@ -2297,6 +2466,106 @@ static void DoMugshotTransition(u8 taskId)
 {
     while (sMugshot_Funcs[gTasks[taskId].tState](&gTasks[taskId]));
 }
+//定义VS标志的参数
+#define GFX_TAG_VS_SYMBOL 0xFDF0
+//定义训练师相关
+#define IS_VALID_TABLE_SPRITE(trainerPicId) (trainerPicId < ARRAY_COUNT(sPreBattleMugshotSprites) \
+											 && sPreBattleMugshotSprites[trainerPicId].sprite != NULL \
+											 && sPreBattleMugshotSprites[trainerPicId].pal != NULL) //Has complete data for image
+//以下部分全部移植自CFRU
+//MODIFIED FOR NEW MUGSHOT SYSTEM
+//（各类函数定义）declartion
+static u8 CreateMugshotTrainerSprite(u8 trainerPicId, s16 x, s16 y, u8 subpriority, u8* buffer, bool8 loadingPlayer);
+static void UpdateMugshotSpriteTemplate(struct SpriteTemplate* spriteTemplate, u16 tag);
+static void UpdateMugshotSpriteData(u8 spriteId, u8 shape, u16 scaleX, u16 scaleY, u16 rotation, bool8 setScale);
+//（资源定义）resources
+const struct MugshotTable sPreBattleMugshotSprites[147] =
+{
+	[106] = {Silver_MugshotTiles, Silver_MugshotPal,0x80, 0, -32}, //Example: Replaces Blue's sprite with Silver's mugshot
+	[124] = {Silver_MugshotTiles, Silver_MugshotPal,0x80, 0, -32}, //Example: Replaces Player's sprite with Silver's mugshot
+};
+//对手训练师全身转场色板
+const u16* const sMugshotsBigPals[] =
+{
+	[0x0] = sBig_MugshotPal,
+	[0x1] = sBig_MugshotPal,
+	[0x2] = Big_Mugshot_BlackPal,
+	[0x3] = Big_Mugshot_Dark_GrayPal,
+	[0x4] = Big_Mugshot_Dark_PurplePal,
+	[0x5] = Big_Mugshot_GreenPal,
+	[0x6] = Big_Mugshot_Icy_BluePal,
+	[0x7] = Big_Mugshot_Light_BrownPal,
+	[0x8] = Big_Mugshot_Light_GreenPal,
+	[0x9] = Big_Mugshot_Pearly_WhitePal,
+	[0xA] = Big_Mugshot_PinkPal,
+	[0xB] = Big_Mugshot_PurplePal,
+	[0xC] = Big_Mugshot_Royal_BluePal,
+	[0xD] = Big_Mugshot_Sky_BluePal,
+	[0xE] = Big_Mugshot_Steel_GrayPal,
+	[0xF] = Big_Mugshot_Yellow_GrayPal,
+};
+//对手训练师单头半身转场色板
+const u16* const sMugshotsDpPals[] =
+{
+	[0x0] = sDP_MugshotPal, //This is called as an error pal
+	[0x1] = sDP_MugshotPal, //0x100
+	[0x2] = DP_Mugshot_BlackPal, //0x200
+	[0x3] = DP_Mugshot_Dark_GrayPal, //0x300
+	[0x4] = DP_Mugshot_Dark_PurplePal, //0x400
+	[0x5] = DP_Mugshot_Dark_GreenPal, //0x500
+	[0x6] = DP_Mugshot_Icy_BluePal, //0x600
+	[0x7] = DP_Mugshot_Light_BrownPal, //0x700
+	[0x8] = DP_Mugshot_Light_GreenPal, //0x800
+	[0x9] = DP_Mugshot_WhitePal, //0x900
+	[0xA] = DP_Mugshot_PinkPal, //0xA00
+	[0xB] = DP_Mugshot_Dark_RedPal, //0xB00
+	[0xC] = DP_Mugshot_Royal_BluePal, //0xC00
+	[0xD] = DP_Mugshot_Sky_BluePal, //0xD00
+	[0xE] = DP_Mugshot_Steel_GrayPal, //0xE00
+	[0xF] = DP_Mugshot_YellowPal, //0xF00
+};
+//对手和自己两者半身转场色板（分别）
+// Separate from DP Table so user can customize palettes easier
+const u16* const sMugshotsTwoBarsPals[] =
+{
+	[0x0] = DP_Mugshot_BlackPal, //This is called as an error pal
+	[0x1] = DP_Mugshot_BlackPal, //0x100
+	[0x2] = DP_Mugshot_BlackPal, //0x200
+	[0x3] = DP_Mugshot_Dark_GrayPal, //0x300
+	[0x4] = DP_Mugshot_Dark_GreenPal, //0x400
+	[0x5] = DP_Mugshot_Dark_PurplePal, //0x500
+	[0x6] = DP_Mugshot_Dark_RedPal, //0x600
+	[0x7] = DP_Mugshot_Icy_BluePal, //0x700
+	[0x8] = DP_Mugshot_Light_GreenPal, //0x800
+	[0x9] = DP_Mugshot_Royal_BluePal, //0x900
+	[0xA] = DP_Mugshot_Steel_GrayPal, //0xA00
+	[0xB] = DP_Mugshot_Light_BrownPal, //0xB00
+	[0xC] = DP_Mugshot_PinkPal, //0xC00
+	[0xD] = DP_Mugshot_WhitePal, //0xD00
+	[0xE] = DP_Mugshot_Sky_BluePal, //0xE00
+	[0xF] = DP_Mugshot_YellowPal, //0xF00
+};
+
+const u16* const sMugshotPlayerPals[] =
+{
+	[0x0] = DP_Mugshot_BlackPal, //This is called as an error pal
+	[0x1] = DP_Mugshot_BlackPal,
+	[0x2] = DP_Mugshot_BlackPal,
+	[0x3] = DP_Mugshot_Dark_GrayPal,
+	[0x4] = DP_Mugshot_Dark_GreenPal,
+	[0x5] = DP_Mugshot_Dark_PurplePal,
+	[0x6] = DP_Mugshot_Dark_RedPal,
+	[0x7] = DP_Mugshot_Icy_BluePal,
+	[0x8] = DP_Mugshot_Light_GreenPal,
+	[0x9] = DP_Mugshot_Royal_BluePal,
+	[0xA] = DP_Mugshot_Steel_GrayPal,
+	[0xB] = DP_Mugshot_Light_BrownPal,
+	[0xC] = DP_Mugshot_PinkPal,
+	[0xD] = DP_Mugshot_WhitePal,
+	[0xE] = DP_Mugshot_Sky_BluePal,
+	[0xF] = DP_Mugshot_YellowPal,
+};
+//修改结束
 
 static bool8 Mugshot_Init(struct Task *task)
 {
@@ -2322,7 +2591,7 @@ static bool8 Mugshot_Init(struct Task *task)
     return FALSE;
 }
 
-static bool8 Mugshot_SetGfx(struct Task *task)
+/*static bool8 Mugshot_SetGfx(struct Task *task)
 {
     s16 i, j;
     u16 *tilemap, *tileset;
@@ -2345,6 +2614,79 @@ static bool8 Mugshot_SetGfx(struct Task *task)
     SetHBlankCallback(HBlankCB_Mugshots);
     task->tState++;
     return FALSE;
+}*/
+
+//以下Mugshot_SetGfx函数移植自CFRU
+static bool8 Mugshot_SetGfx(struct Task* task)
+{
+	s16 i, j;
+    u16 *tilemap, *tileset;
+	const u16* mugshotsMap;
+    u16 mugshotStyle;
+    u16 playerPal;
+
+	mugshotStyle = VarGet(VAR_PRE_BATTLE_MUGSHOT_STYLE);
+	switch (mugshotStyle)
+	{
+		case MUGSHOT_BIG:
+			mugshotsMap = sBig_MugshotMap;
+            GetBg0TilesDst(&tilemap, &tileset);
+			CpuSet(sBig_MugshotTiles, tileset, 0xF0);
+			break;
+
+		case MUGSHOT_DP:
+			mugshotsMap = sDP_MugshotMap;
+            GetBg0TilesDst(&tilemap, &tileset);
+			CpuSet(sDP_MugshotTiles, tileset, 0xF0);
+			break;
+
+		case MUGSHOT_TWO_BARS:
+		default:
+			mugshotsMap = sMugshotsTilemap;
+            GetBg0TilesDst(&tilemap, &tileset);
+            CpuSet(sEliteFour_Tileset, tileset, 0xF0);
+			break;
+	}
+
+	if (sTrainerObjectEventLocalId != 0) //Used for mugshots
+	{
+		switch (mugshotStyle)
+		{
+			case MUGSHOT_BIG:
+				LoadPalette(sMugshotsBigPals[sTrainerObjectEventLocalId >> 8], 0xF0, 0x20);
+				break;
+
+			case MUGSHOT_DP:
+				LoadPalette(sMugshotsDpPals[sTrainerObjectEventLocalId >> 8], 0xF0, 0x20);
+				break;
+
+			case MUGSHOT_TWO_BARS:
+			default:
+				LoadPalette(sMugshotsTwoBarsPals[sTrainerObjectEventLocalId >> 8], 0xF0, 0x20);
+				break;
+		}
+	}
+	else
+	{
+		LoadPalette(sOpponentMugshotsPals[task->tMugshotId], 0xF0, 0x20);
+	}
+
+	playerPal = VarGet(VAR_MUGSHOT_PLAYER_PAL);
+	if (mugshotStyle == MUGSHOT_TWO_BARS && playerPal > 0)
+		LoadPalette(sMugshotPlayerPals[playerPal] + 5, 0xFA, 0xA);
+	else
+		LoadPalette(sPlayerMugshotsPals[gSaveBlock2Ptr->playerGender], 0xFA, 0xC);
+
+    for (i = 0; i < 20; i++)
+    {
+        for (j = 0; j < 32; j++, mugshotsMap++)
+            SET_TILE(tilemap, i, j, *mugshotsMap);
+    }
+
+	EnableInterrupts(INTR_FLAG_HBLANK);
+	SetHBlankCallback(HBlankCB_Mugshots);
+	task->tState++;
+	return FALSE;
 }
 
 static bool8 Mugshot_ShowBanner(struct Task *task)
@@ -2401,7 +2743,7 @@ static bool8 Mugshot_ShowBanner(struct Task *task)
     return FALSE;
 }
 
-static bool8 Mugshot_StartOpponentSlide(struct Task *task)
+/*static bool8 Mugshot_StartOpponentSlide(struct Task *task)
 {
     u8 i;
     u16 *toStore;
@@ -2431,6 +2773,74 @@ static bool8 Mugshot_StartOpponentSlide(struct Task *task)
 
     sTransitionData->VBlank_DMA++;
     return FALSE;
+}*/
+//以下Mugshot_StartOpponentSlide函数移植自CFRU
+static bool8 Mugshot_StartOpponentSlide(struct Task* task)
+{
+	u8 i;
+	u16* winVal;
+    u16 mugshotType;
+    u16 mugshotSprite;
+
+	sTransitionData->VBlank_DMA = FALSE;
+	for (i = 0, winVal = gScanlineEffectRegBuffers[0]; i < 160; ++i, ++winVal)
+		*winVal = 0xF0;
+
+    // Clear old data
+	task->tState++;
+    task->tSinIndex = 0;
+    task->tTopBannerX = 0;
+    task->tBottomBannerX = 0;
+	sTransitionData->BG0HOFS_Lower -= 8;
+	sTransitionData->BG0HOFS_Upper += 8;
+
+	SetTrainerPicSlideDirection(task->tOpponentSpriteId, 0);
+   //这里将双打对战和Partner的函数全部注掉，因为原版火红及绿宝石中不存在
+	/*if (IsTrainerBattleModeAgainstTwoOpponents())
+	{
+		SetTrainerPicSlideDirection(task->tOpponentSpriteId2, 0);
+		gSprites[task->tOpponentSpriteId].data[5] = 1;
+		gSprites[task->tOpponentSpriteId2].data[5] = 2;
+	}*/
+
+	SetTrainerPicSlideDirection(task->tPlayerSpriteId, 1);
+
+	mugshotType = VarGet(VAR_PRE_BATTLE_MUGSHOT_STYLE);
+	mugshotSprite = VarGet(VAR_PRE_BATTLE_MUGSHOT_SPRITE);
+    if (mugshotSprite == MUGSHOT_VS_SYMBOL)
+    {
+        //仿照HGSS的视觉效果，只要带VS标记就闪光
+        if (mugshotType == MUGSHOT_TWO_BARS)
+            BeginNormalPaletteFade(PALETTES_BG, 1, 16, 0, RGB(30, 30, 31));//屏幕闪白光第二下（背景闪）
+        else
+            BeginNormalPaletteFade(PALETTES_ALL, 1, 16, 0, RGB(30, 30, 31));//屏幕闪白光第二下（全闪）
+        //if (!gPaletteFade.active)
+            //BeginNormalPaletteFade(PALETTES_ALL, 2, 16, 0, RGB(30, 30, 31));
+    }
+    
+	/*if (mugshotSprite == MUGSHOT_PLAYER && mugshotType == MUGSHOT_TWO_BARS)
+	{
+		SetTrainerPicSlideDirection(task->tVSSymbol, 0);
+		gSprites[task->tVSSymbol].data[5] = 3;
+	}*/
+	/*if (mugshotSprite != MUGSHOT_VS_SYMBOL)
+	{
+		/*if (IsTrainerBattleModeWithPartner())
+		{
+			SetTrainerPicSlideDirection(task->tPartnerSpriteId, 1);
+			gSprites[task->tPlayerSpriteId].data[5] = 1;
+			gSprites[task->tPartnerSpriteId].data[5] = 2;
+		}*/
+	//}
+	IncrementTrainerPicState(task->tOpponentSpriteId);
+	/*if (IsTrainerBattleModeAgainstTwoOpponents())
+		IncrementTrainerPicState(task->tOpponentSpriteId2);*/
+	//if (mugshotSprite == MUGSHOT_PLAYER && mugshotType == MUGSHOT_TWO_BARS)	//centered vs symbol
+		//IncrementTrainerPicState(task->tVSSymbol);
+	PlaySE(SE_MUGSHOT);
+
+	sTransitionData->VBlank_DMA++;
+	return FALSE;
 }
 
 static bool8 Mugshot_WaitStartPlayerSlide(struct Task *task)
@@ -2445,12 +2855,23 @@ static bool8 Mugshot_WaitStartPlayerSlide(struct Task *task)
         IncrementTrainerPicState(task->tPlayerSpriteId);
     }
     return FALSE;
+
 }
 
 static bool8 Mugshot_WaitPlayerSlide(struct Task *task)
 {
+    u16 mugshotSprite = VarGet(VAR_PRE_BATTLE_MUGSHOT_SPRITE);
+    u16 mugshotType = VarGet(VAR_PRE_BATTLE_MUGSHOT_STYLE);
     sTransitionData->BG0HOFS_Lower -= 8;
     sTransitionData->BG0HOFS_Upper += 8;
+
+        if (mugshotType == MUGSHOT_TWO_BARS && mugshotSprite == MUGSHOT_VS_SYMBOL)
+        {
+            if (!gPaletteFade.active)
+            BeginNormalPaletteFade(PALETTES_BG, 1, 16, 0, RGB(30, 30, 31));//屏幕闪第二下（全闪）
+        //if (!gPaletteFade.active)
+            //BeginNormalPaletteFade(PALETTES_ALL, 2, 16, 0, RGB(30, 30, 31));
+        }
 
     if (IsTrainerPicSlideDone(task->tPlayerSpriteId))
     {
@@ -2578,7 +2999,8 @@ static void HBlankCB_Mugshots(void)
         REG_BG0HOFS = sTransitionData->BG0HOFS_Upper;
 }
 
-static void Mugshots_CreateTrainerPics(struct Task *task)
+//这个原函数已经被废弃不用。
+/*static void Mugshots_CreateTrainerPics(struct Task *task)
 {
     struct Sprite *opponentSprite, *playerSprite;
 
@@ -2615,6 +3037,321 @@ static void Mugshots_CreateTrainerPics(struct Task *task)
 
     SetOamMatrixRotationScaling(opponentSprite->oam.matrixNum, sMugshotsOpponentRotationScales[mugshotId][0], sMugshotsOpponentRotationScales[mugshotId][1], 0);
     SetOamMatrixRotationScaling(playerSprite->oam.matrixNum, -512, 512, 0);
+}*/
+
+//生成训练师图片，VS标志等
+static void Mugshots_CreateTrainerPics(struct Task* task)
+{
+	struct Sprite *opponentSprite, *playerSprite;
+	s16 mugshotId = task->tMugshotId;
+	u8 trainerPicId, trainerPicId2, trainerPicIdPartner;
+	s16 x1, x2, y1, y2;
+
+	u16 mugshotType = VarGet(VAR_PRE_BATTLE_MUGSHOT_STYLE);
+	u16 mugshotSprite = VarGet(VAR_PRE_BATTLE_MUGSHOT_SPRITE);
+    struct CompressedSpritePalette pal;
+    struct CompressedSpriteSheet sprite;
+    //调整坐标参数
+	switch (mugshotType)
+	{
+		case MUGSHOT_BIG:
+			x1 = 64; y1 = 48;
+			x2 = 304, y2 = 42;
+			break;
+
+		case MUGSHOT_DP:
+			x1 = 64; y1 = 74;
+			x2 = 304, y2 = 74;
+			break;
+
+		case MUGSHOT_TWO_BARS:
+		//default:
+			x1 = 64; y1 = 42;
+			x2 = 304, y2 = 106;
+			break;
+	}
+	//这里的参数是指VS标志的Y坐标，已经不需要了，注掉
+	/*if (mugshotSprite == MUGSHOT_VS_SYMBOL)
+	{
+		switch (mugshotType)
+		{
+			case MUGSHOT_BIG:
+				y2 = 47;
+				break;
+
+			case MUGSHOT_DP:	//Smaller Vs Symbol
+				y2 = 48;
+				break;
+
+			case MUGSHOT_TWO_BARS:
+			default:
+				y2 = 80;
+				break;
+		}
+	}*///这里不需要VS SYMBOL相关的任何函数，因为已经不显示了
+	//Load Opponent A（读取对手训练师图片）
+	//if (sTrainerObjectEventLocalId != 0)
+		//trainerPicId = GetFrontierTrainerFrontSpriteId(gTrainerBattleOpponent_A);
+	//else
+		//trainerPicId = sMugshotsTrainerPicIDsTable[mugshotId];
+        trainerPicId = gTrainers[gTrainerBattleOpponent_A].trainerPic;
+	gReservedSpritePaletteCount = 10; //add new reserved palette
+    task->tOpponentSpriteId = CreateMugshotTrainerSprite(trainerPicId,
+														sMugshotsOpponentCoords[mugshotId][0] - x1,
+														sMugshotsOpponentCoords[mugshotId][1] + y1,
+														0, gDecompressionBuffer, FALSE);
+
+	//双打的代码，注掉
+    //Load Opponent B
+	/*if (IsTrainerBattleModeAgainstTwoOpponents())
+	{
+		trainerPicId2 = GetFrontierTrainerFrontSpriteId(VarGet(VAR_SECOND_OPPONENT), 1);
+		task->tOpponentSpriteId2 = CreateMugshotTrainerSprite(trainerPicId2,
+															sMugshotsOpponentCoords[mugshotId][0] - x1 - 50,
+															sMugshotsOpponentCoords[mugshotId][1] + y1,
+															0, gDecompressionBuffer, FALSE);
+
+		if (mugshotType == MUGSHOT_BIG)
+			UpdateMugshotSpriteData(task->tOpponentSpriteId2, SPRITE_SHAPE(64x64), sMugshotsOpponentRotationScales[mugshotId][0], sMugshotsOpponentRotationScales[mugshotId][1], 0, TRUE);
+		#ifdef FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE
+		else if (FlagGet(FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE))
+		{
+			if (!IS_VALID_TABLE_SPRITE(trainerPicId2))
+				UpdateMugshotSpriteData(task->tOpponentSpriteId2, SPRITE_SHAPE(64x32), sMugshotsOpponentRotationScales[mugshotId][0], sMugshotsOpponentRotationScales[mugshotId][1], 0, TRUE);
+			else
+				UpdateMugshotSpriteData(task->tOpponentSpriteId2, SPRITE_SHAPE(64x64), 0, 0, 0, FALSE);
+		}
+		#endif
+		else
+		{
+			UpdateMugshotSpriteData(task->tOpponentSpriteId2, SPRITE_SHAPE(64x32), sMugshotsOpponentRotationScales[mugshotId][0], sMugshotsOpponentRotationScales[mugshotId][1], 0, TRUE);
+		}
+	}*/
+
+	//Load Player
+	gReservedSpritePaletteCount = 11; //add new reserved palette
+    //这里实际上要修改的是CreateMugshotTrainerSprite函数的前半部分，带VS SYMBOL的话，直接换成一个透明的图像占位符
+    task->tPlayerSpriteId = CreateMugshotTrainerSprite(PlayerGenderToFrontTrainerPicId(gSaveBlock2Ptr->playerGender), x2, y2, 0, gDecompressionBuffer, TRUE);
+    //原版CFRU把VS标志当做是训练师图片生成了，效果不好。所以这里直接用生成Sprites的方式解决
+    //显示带VS的MUGSHOT时
+    if (mugshotSprite == MUGSHOT_VS_SYMBOL)
+    {
+		BeginNormalPaletteFade(PALETTES_BG, 1, 16, 0, RGB(30, 30, 31));//视觉效果，屏幕背景闪一下，作为Sprite的VS标志的颜色不变
+        if (mugshotType == MUGSHOT_DP)//（DP训练师半身风格，不采用默认头像）
+    	{
+        	struct SpriteTemplate spriteTemplate;
+        	struct SpriteTemplate spriteTemplate2;
+        		
+            BeginNormalPaletteFade(PALETTES_BG, 1, 16, 0, RGB(30, 30, 31));//屏幕背景闪一下
+        	//生成VS标志
+			gReservedSpritePaletteCount = 11; //add new reserved palette
+	    	pal.data = gVS_SpritePal;
+	    	sprite.data = gVS_SpriteTiles;
+	    	sprite.size = 64 * 64 / 2;
+	    	sprite.tag =  GFX_TAG_VS_SYMBOL;
+	    	pal.tag =  GFX_TAG_VS_SYMBOL;
+			LoadCompressedSpritePaletteOverrideBuffer(&pal, gDecompressionBuffer);
+			LoadCompressedSpriteSheetOverrideBuffer(&sprite, gDecompressionBuffer);
+			spriteTemplate.tileTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate.paletteTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate.oam = &sOam_VSSymbol;
+			spriteTemplate.anims = gDummySpriteAnimTable;
+			spriteTemplate.images = NULL;
+			spriteTemplate.affineAnims = sSpriteAffineAnims_VSSymbolDP;//缩放动画选项
+			spriteTemplate.callback = SpriteCB_ShakeVSSymbol;//使得VS标志动起来
+			task->tVSSymbol = CreateSprite(&spriteTemplate, 49, 80, 0);
+			//生成VS标志的影子
+			spriteTemplate2.tileTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate2.paletteTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate2.oam = &sOam_VSSymbolShadow;
+			spriteTemplate2.anims = gDummySpriteAnimTable;
+			spriteTemplate2.images = NULL;
+			spriteTemplate2.affineAnims = sSpriteAffineAnims_VSSymbolShadowDP;//缩放动画选项
+			spriteTemplate2.callback = SpriteCB_VSSymbolShadow;//VS标志影子脚本（缩放后消失）
+			task->tVSSymbolShadow = CreateSprite(&spriteTemplate2, 49, 80, 1);//优先度在VS标志之下
+    	}
+        else if (mugshotType == MUGSHOT_BIG)//（对手训练师全身放大风格，这里的参数还要再改）
+    	{
+        	struct SpriteTemplate spriteTemplate;
+        	struct SpriteTemplate spriteTemplate2;
+        
+        	BeginNormalPaletteFade(PALETTES_BG, 1, 16, 0, RGB(30, 30, 31));//屏幕闪一下，BIG为背景色
+        	//生成VS标志
+			gReservedSpritePaletteCount = 11; //add new reserved palette
+	    	pal.data = gVS_SpritePal;
+	    	sprite.data = gVS_SpriteTiles;
+	    	sprite.size = 64 * 64 / 2;
+	    	sprite.tag =  GFX_TAG_VS_SYMBOL;
+	    	pal.tag =  GFX_TAG_VS_SYMBOL;
+			LoadCompressedSpritePaletteOverrideBuffer(&pal, gDecompressionBuffer);
+			LoadCompressedSpriteSheetOverrideBuffer(&sprite, gDecompressionBuffer);
+			spriteTemplate.tileTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate.paletteTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate.oam = &sOam_VSSymbol;
+			spriteTemplate.anims = gDummySpriteAnimTable;
+			spriteTemplate.images = NULL;
+			spriteTemplate.affineAnims = sSpriteAffineAnims_VSSymbolBig;//缩放动画选项（大号VS标志）
+			spriteTemplate.callback = SpriteCB_ShakeVSSymbolBig;//使得VS标志动起来
+			task->tVSSymbol = CreateSprite(&spriteTemplate, 57, 80, 0);//相比DP，坐标向右移动8像素
+			//生成VS标志的影子
+			spriteTemplate2.tileTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate2.paletteTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate2.oam = &sOam_VSSymbolShadow;
+			spriteTemplate2.anims = gDummySpriteAnimTable;
+			spriteTemplate2.images = NULL;
+			spriteTemplate2.affineAnims = sSpriteAffineAnims_VSSymbolShadowBig;//缩放动画选项（大号VS标志）
+			spriteTemplate2.callback = SpriteCB_VSSymbolShadow;//VS标志影子脚本（缩放后消失）
+			task->tVSSymbolShadow = CreateSprite(&spriteTemplate2, 57, 80, 1);//优先度在VS标志之下//相比DP，坐标向右移动8像素
+    	}
+        else
+		//生成双打版本的MUGSHOT时出现的VS符号
+		//if (mugshotSprite == MUGSHOT_VS_SYMBOL && mugshotType == MUGSHOT_TWO_BARS)
+		{
+			struct SpriteTemplate spriteTemplate;
+
+            BeginNormalPaletteFade(PALETTES_ALL, 1, 16, 0, RGB(30, 30, 31));//屏幕闪一下，这里TWOBARS是全部
+			gReservedSpritePaletteCount = 12; //add new reserved palette（这里+1，不影响主人公图片）
+			pal.data = gVS_SpritePal;
+			sprite.data = gVS_SpriteTiles;
+			sprite.size = 64 * 64 / 2;
+			sprite.tag =  GFX_TAG_VS_SYMBOL;
+			pal.tag =  GFX_TAG_VS_SYMBOL;
+			LoadCompressedSpritePaletteOverrideBuffer(&pal, gDecompressionBuffer);
+			LoadCompressedSpriteSheetOverrideBuffer(&sprite, gDecompressionBuffer);
+			spriteTemplate.tileTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate.paletteTag = GFX_TAG_VS_SYMBOL;
+			spriteTemplate.oam = &sOam_VSSymbol;
+			spriteTemplate.anims = gDummySpriteAnimTable;
+			spriteTemplate.images = NULL;
+			spriteTemplate.affineAnims = sSpriteAffineAnims_VSSymbolExpand;//扩大
+			spriteTemplate.callback = SpriteCB_ShakeVSSymbol;//使得VS标志动起来
+			//spriteTemplate.callback = SpriteCallbackDummy;//原版CFRU
+			//UpdateMugshotSpriteTemplate(&spriteTemplate, GFX_TAG_VS_SYMBOL); //Not being used currently
+			//原版CFRU，VS是跟着主角头像一起滑动过来的。
+			//task->tVSSymbol = CreateSprite(&spriteTemplate, sMugshotsOpponentCoords[mugshotId][0] - x1 - 108, 50, 0);
+			task->tVSSymbol = CreateSprite(&spriteTemplate, 118, 80, 0);
+        }
+    }
+	//Load Player Partner（双打的代码）
+	/*if (mugshotSprite == MUGSHOT_PLAYER)
+	{
+		if (IsTrainerBattleModeWithPartner())
+		{
+			trainerPicIdPartner = (GetFrontierTrainerFrontSpriteId(gTrainerBattlePartner, 2));
+			task->tPartnerSpriteId = CreateMugshotTrainerSprite(trainerPicIdPartner, x2 + 50, y2, 0, gDecompressionBuffer, FALSE);
+
+			if (mugshotType == MUGSHOT_BIG)
+				UpdateMugshotSpriteData(task->tPartnerSpriteId, SPRITE_SHAPE(64x64), -512, 512, 0, TRUE);
+			else if (FlagGet(FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE))
+			{
+				if (!IS_VALID_TABLE_SPRITE(trainerPicIdPartner))
+					UpdateMugshotSpriteData(task->tPartnerSpriteId, SPRITE_SHAPE(64x32), -512, 512, 0, TRUE);
+				else
+					UpdateMugshotSpriteData(task->tPartnerSpriteId, SPRITE_SHAPE(64x64), 0, 0, 0, FALSE);
+			}
+			else
+			{
+				UpdateMugshotSpriteData(task->tPartnerSpriteId, SPRITE_SHAPE(64x32), -512, 512, 0, TRUE);
+			}
+		}
+	}
+	else*/
+	{
+		trainerPicIdPartner = 0; //So the compiler doesn't complain
+		++trainerPicIdPartner;
+	}
+	opponentSprite = &gSprites[task->tOpponentSpriteId];
+	playerSprite = &gSprites[task->tPlayerSpriteId];
+
+	opponentSprite->callback = SpriteCB_MugshotTrainerPic; //sub_8148380 in Emerald
+	playerSprite->callback = SpriteCB_MugshotTrainerPic;
+
+	opponentSprite->oam.affineMode = 3;
+	playerSprite->oam.affineMode = 3;
+
+	opponentSprite->oam.matrixNum = AllocOamMatrix();
+	playerSprite->oam.matrixNum = AllocOamMatrix();
+
+	if (mugshotType == MUGSHOT_BIG)
+	{
+		opponentSprite->oam.shape = SPRITE_SHAPE(64x64);
+		playerSprite->oam.shape = SPRITE_SHAPE(64x64);
+	}
+	else if (mugshotSprite == MUGSHOT_VS_SYMBOL)
+	{
+		if (mugshotType == MUGSHOT_DP || mugshotType == MUGSHOT_TWO_BARS)
+		{
+			if (FlagGet(FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE))
+            {
+				opponentSprite->oam.shape = SPRITE_SHAPE(64x64);
+                playerSprite->oam.shape = SPRITE_SHAPE(64x64); //修正角色大小，保留宝石原版转场
+            }
+			else
+            {
+				opponentSprite->oam.shape = SPRITE_SHAPE(64x32);//用于DP单人转场和宝石原版转场
+                playerSprite->oam.shape = SPRITE_SHAPE(64x32); //修正角色大小，保留宝石原版转场
+            }
+		}
+		else if (FlagGet(FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE))
+		{
+			if (IS_VALID_TABLE_SPRITE(trainerPicId))
+				opponentSprite->oam.shape = SPRITE_SHAPE(64x64);
+			else
+			{
+				opponentSprite->oam.shape = SPRITE_SHAPE(64x32);
+                //这个函数已经不需要了
+				//playerSprite->oam.shape = SPRITE_SHAPE(64x64); //Gets shrunk down later
+			}
+		}
+	}
+	else if (FlagGet(FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE))
+	{
+		if (IS_VALID_TABLE_SPRITE(PlayerGenderToFrontTrainerPicId(gSaveBlock2Ptr->playerGender)))
+			playerSprite->oam.shape = SPRITE_SHAPE(64x64);
+		else
+			playerSprite->oam.shape = SPRITE_SHAPE(64x32);
+
+		if (IS_VALID_TABLE_SPRITE(trainerPicId))
+			opponentSprite->oam.shape = SPRITE_SHAPE(64x64);
+		else
+			opponentSprite->oam.shape = SPRITE_SHAPE(64x32);
+	}
+	else
+	{
+		opponentSprite->oam.shape = SPRITE_SHAPE(64x32);
+		playerSprite->oam.shape = SPRITE_SHAPE(64x32);
+	}
+
+	opponentSprite->oam.size = SPRITE_SIZE(64x64);
+	playerSprite->oam.size = SPRITE_SIZE(64x64);
+
+	CalcCenterToCornerVec(opponentSprite, 1, 3, 3);
+	CalcCenterToCornerVec(playerSprite, 1, 3, 3);
+
+	if ((FlagGet(FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE)))
+	{
+		if (!IS_VALID_TABLE_SPRITE(trainerPicId))
+			SetOamMatrixRotationScaling(opponentSprite->oam.matrixNum, sMugshotsOpponentRotationScales[mugshotId][0], sMugshotsOpponentRotationScales[mugshotId][1], 0);
+	}
+	else
+	{
+		SetOamMatrixRotationScaling(opponentSprite->oam.matrixNum, sMugshotsOpponentRotationScales[mugshotId][0], sMugshotsOpponentRotationScales[mugshotId][1], 0);
+	}
+    //这里的代码是关于CFRU原版VS标志的缩放，已经彻底不需要了，注掉
+	//if (mugshotType == MUGSHOT_BIG && mugshotSprite == MUGSHOT_VS_SYMBOL)
+		//SetOamMatrixRotationScaling(playerSprite->oam.matrixNum, 448, 448, 0);
+	//else if (mugshotSprite == MUGSHOT_VS_SYMBOL)
+		//SetOamMatrixRotationScaling(playerSprite->oam.matrixNum, 256, 256, 0);
+    //给宝石原版转场预留
+    if (mugshotType == MUGSHOT_TWO_BARS && mugshotSprite == MUGSHOT_VS_SYMBOL)
+		SetOamMatrixRotationScaling(playerSprite->oam.matrixNum, 256, 256, 0);
+	if (FlagGet(FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE))
+	{
+		if (!IS_VALID_TABLE_SPRITE(PlayerGenderToFrontTrainerPicId(gSaveBlock2Ptr->playerGender)))
+			SetOamMatrixRotationScaling(playerSprite->oam.matrixNum, -512, 512, 0);
+	}
+	else
+		SetOamMatrixRotationScaling(playerSprite->oam.matrixNum, -512, 512, 0);
 }
 
 static void SpriteCB_MugshotTrainerPic(struct Sprite *sprite)
@@ -2642,7 +3379,7 @@ static bool8 MugshotTrainerPic_Init(struct Sprite *sprite)
     return TRUE;
 }
 
-static bool8 MugshotTrainerPic_Slide(struct Sprite *sprite)
+/*static bool8 MugshotTrainerPic_Slide(struct Sprite *sprite)
 {
     sprite->x += sprite->sSlideSpeed;
 
@@ -2652,6 +3389,70 @@ static bool8 MugshotTrainerPic_Slide(struct Sprite *sprite)
     else if (!sprite->sSlideDir && sprite->x > 103)
         sprite->sState++;
     return FALSE;
+}*/
+
+static bool8 MugshotTrainerPic_Slide(struct Sprite *sprite)
+{
+	sprite->x += sprite->data[1];
+
+	switch (sprite->data[7]) {
+		case 0: //Sprite going to the right / opponent sprite
+			switch (sprite->data[5]) {
+				case 1: //Opponent Sprite A - Two Opponents
+					if (sprite->x > 139)
+						sprite->data[0]++;
+					break;
+
+				case 2: //Opponent Sprite B - Two Opponents
+					if (VarGet(VAR_PRE_BATTLE_MUGSHOT_SPRITE) == MUGSHOT_PLAYER)
+					{
+						if (sprite->x > 91)
+						{
+							sprite->x += 2;
+							sprite->data[0]++;
+						}
+					}
+					else
+					{
+						if (sprite->x > 67)
+						{
+							sprite->x += 2;
+							sprite->data[0]++;
+						}
+					}
+					break;
+
+				case 3: //Centred Vs Symbol
+					if (sprite->x > 55)
+						sprite->data[0]++;
+					break;
+
+				default: //Regular Opponent
+					if (sprite->x > 103)
+						sprite->data[0]++;
+			}
+			break;
+
+		default: //Sprite going to the left / player sprite
+			switch (sprite->data[5])
+			{
+				case 1: //Player Sprite - Tag Battle
+					if (sprite->x < 97)
+						sprite->data[0]++;
+					break;
+
+				case 2: //Partner Sprite - Tag Battle
+					if (sprite->x< 133)
+						sprite->data[0]++;
+					break;
+
+				default:
+					if (sprite->x < 133)
+						sprite->data[0]++;
+			}
+	}
+
+	return FALSE;
 }
 
 static bool8 MugshotTrainerPic_SlideSlow(struct Sprite *sprite)
@@ -2708,6 +3509,7 @@ static s16 IsTrainerPicSlideDone(s16 spriteId)
 #undef tBottomBannerX
 #undef tTimer
 #undef tFadeSpread
+#undef tVSSymbol
 #undef tOpponentSpriteId
 #undef tPlayerSpriteId
 #undef tMugshotId
@@ -4774,3 +5576,128 @@ static bool8 FrontierSquaresScroll_End(struct Task *task)
 #undef tScrollYDir
 #undef tScrollUpdateFlag
 #undef tSquareNum
+
+//新增的一些有关转场的函数
+//相比CFRU原版，这里是重点调整的部分。
+static u8 CreateMugshotTrainerSprite(u8 trainerPicId, s16 x, s16 y, u8 subpriority, u8* buffer, bool8 loadingPlayer)
+{
+    struct CompressedSpritePalette pal;
+    struct CompressedSpriteSheet sprite;
+    struct SpriteTemplate spriteTemplate;
+    u16 a, mugshotSprite, mugshotType;
+
+	mugshotSprite = VarGet(VAR_PRE_BATTLE_MUGSHOT_SPRITE);
+	mugshotType = VarGet(VAR_PRE_BATTLE_MUGSHOT_STYLE);
+    //加入判断条件，保留宝石版原版的没有VS的默认转场
+	if (mugshotType == MUGSHOT_TWO_BARS && mugshotSprite == MUGSHOT_VS_SYMBOL)
+		a = 0;//生成玩家图像，也就是跳转到宝石原版的转场
+    else
+		a = mugshotSprite;
+    
+	switch (a)
+	{
+        case MUGSHOT_VS_SYMBOL:
+			if (loadingPlayer)
+			{
+                //这一部分本应全部删除，因为VS部分的参数已经全部修改，再也不需要读取Player的坐标了
+                //可如果全部彻底消除的话，会读取奇怪的东西（行走图块）
+                //所以在不对源代码进行大改的情况下，这里放一个占位透明Spirte是最简单的解决方法
+                pal.data = gVS_SpritePal;
+                //sprite.data = gVS_SpriteTiles;
+                sprite.data = gVSDummy_SpriteTiles;//替换为一个占位的透明Sprites
+                sprite.size = 64 * 64 / 2;
+                sprite.tag = gTrainerFrontPicPaletteTable[trainerPicId].tag;
+                pal.tag = gTrainerFrontPicPaletteTable[trainerPicId].tag;
+		        LoadCompressedSpritePaletteOverrideBuffer(&pal, buffer);
+		        LoadCompressedSpriteSheetOverrideBuffer(&sprite, buffer);
+			}
+			else
+			{
+				if (FlagGet(FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE))
+				{
+					if (IS_VALID_TABLE_SPRITE(trainerPicId)) //Complete data for image
+					{
+						pal.data = gVS_SpritePal;
+						sprite.data = gVS_SpriteTiles;
+						sprite.size = 64 * 64 / 2;
+						sprite.tag = gTrainerFrontPicPaletteTable[trainerPicId].tag;
+						pal.tag = gTrainerFrontPicPaletteTable[trainerPicId].tag;
+						LoadCompressedSpritePaletteOverrideBuffer(&pal, buffer);
+						LoadCompressedSpriteSheetOverrideBuffer(&sprite, buffer);
+						x += sPreBattleMugshotSprites[trainerPicId].x;
+						y += sPreBattleMugshotSprites[trainerPicId].y;
+					}
+					else
+					{
+						LoadCompressedSpritePaletteOverrideBuffer(&gTrainerFrontPicPaletteTable[trainerPicId], buffer);
+						LoadCompressedSpriteSheetOverrideBuffer(&gTrainerFrontPicTable[trainerPicId], buffer);
+					}
+				}
+				else
+				{
+					LoadCompressedSpritePaletteOverrideBuffer(&gTrainerFrontPicPaletteTable[trainerPicId], buffer);
+					LoadCompressedSpriteSheetOverrideBuffer(&gTrainerFrontPicTable[trainerPicId], buffer);
+				}
+			}
+			break;
+		case MUGSHOT_PLAYER://生成玩家的图像
+		default:
+			if (FlagGet(FLAG_LOAD_MUGSHOT_SPRITE_FROM_TABLE))
+			{
+				if (IS_VALID_TABLE_SPRITE(trainerPicId)) //Complete data for image
+				{
+					pal.data = sPreBattleMugshotSprites[trainerPicId].pal;
+                    pal.tag = gTrainerFrontPicPaletteTable[trainerPicId].tag;
+				    sprite.data = sPreBattleMugshotSprites[trainerPicId].sprite;
+                    sprite.size = sPreBattleMugshotSprites[trainerPicId].size;
+                    sprite.tag = gTrainerFrontPicTable[trainerPicId].tag;
+					LoadCompressedSpritePaletteOverrideBuffer(&pal, buffer);
+					LoadCompressedSpriteSheetOverrideBuffer(&sprite, buffer);
+					x += sPreBattleMugshotSprites[trainerPicId].x;
+					y += sPreBattleMugshotSprites[trainerPicId].y;
+				}
+				else
+				{
+                    struct CompressedSpritePalette palStruct = {gTrainerFrontPicPaletteTable[trainerPicId].data, gTrainerFrontPicPaletteTable[trainerPicId].tag};
+                    LoadCompressedSpritePaletteOverrideBuffer(&palStruct, buffer);
+					LoadCompressedSpriteSheetOverrideBuffer(&gTrainerFrontPicTable[trainerPicId], buffer);
+				}
+			}
+			else
+			{
+                struct CompressedSpritePalette palStruct = {gTrainerFrontPicPaletteTable[trainerPicId].data, gTrainerFrontPicPaletteTable[trainerPicId].tag};
+				LoadCompressedSpritePaletteOverrideBuffer(&palStruct, buffer);
+				LoadCompressedSpriteSheetOverrideBuffer(&gTrainerFrontPicTable[trainerPicId], buffer);
+			}
+			break;
+	}
+
+	UpdateMugshotSpriteTemplate(&spriteTemplate, gTrainerFrontPicTable[trainerPicId].tag);
+	return CreateSprite(&spriteTemplate, x, y, subpriority);
+}
+
+//修改结束
+static void UpdateMugshotSpriteTemplate(struct SpriteTemplate* spriteTemplate, u16 tag)
+{
+	spriteTemplate->tileTag = tag;
+	spriteTemplate->paletteTag = tag;
+	spriteTemplate->oam = &sOam_UnusedBrendanLass;
+	spriteTemplate->anims = gDummySpriteAnimTable;
+	spriteTemplate->images = NULL;
+	spriteTemplate->affineAnims = gDummySpriteAffineAnimTable;
+	spriteTemplate->callback = SpriteCallbackDummy;
+}
+
+static void UpdateMugshotSpriteData(u8 spriteId, u8 shape, u16 scaleX, u16 scaleY, u16 rotation, bool8 setScale)
+{
+	struct Sprite* sprite = &gSprites[spriteId];
+	sprite->callback = SpriteCB_MugshotTrainerPic;
+	sprite->oam.affineMode = 3;
+	sprite->oam.matrixNum = AllocOamMatrix();
+	sprite->oam.shape = shape;
+	sprite->oam.size = SPRITE_SIZE(64x64);
+	CalcCenterToCornerVec(sprite, 1, 3, 3);
+
+	if (setScale)
+		SetOamMatrixRotationScaling(sprite->oam.matrixNum, scaleX, scaleY, rotation);
+}

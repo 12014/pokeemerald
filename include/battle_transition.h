@@ -10,14 +10,15 @@ void GetBg0TilesDst(u16 **tilemap, u16 **tileset);
 
 extern const struct SpritePalette gSpritePalette_Pokeball;
 
-enum {
+//为实现MUGSHOT脚本控制
+/*enum {
     MUGSHOT_SIDNEY,
     MUGSHOT_PHOEBE,
     MUGSHOT_GLACIA,
     MUGSHOT_DRAKE,
     MUGSHOT_CHAMPION,
     MUGSHOTS_COUNT
-};
+};*/
 
 enum {
     B_TRANSITION_BLUR,
@@ -62,6 +63,7 @@ enum {
     B_TRANSITION_FRONTIER_CIRCLES_CROSS_IN_SEQ,
     B_TRANSITION_FRONTIER_CIRCLES_ASYMMETRIC_SPIRAL_IN_SEQ,
     B_TRANSITION_FRONTIER_CIRCLES_SYMMETRIC_SPIRAL_IN_SEQ,
+    B_TRANSITION_MUGSHOT,//MUGSHOT可操作化
     B_TRANSITION_COUNT
 };
 
@@ -77,6 +79,31 @@ enum {
     B_TRANSITION_GROUP_TRAINER_HILL,
     B_TRANSITION_GROUP_SECRET_BASE,
     B_TRANSITION_GROUP_E_READER,
+};
+
+//MODIFIED MUGSHOT
+//VAR_PRE_BATTLE_MUGSHOT_STYLE
+enum
+{
+    MUGSHOT_TWO_BARS = 0,
+    MUGSHOT_DP,
+    MUGSHOT_BIG,
+};
+
+//VAR_PRE_BATTLE_MUGSHOT_SPRITE
+enum
+{
+    MUGSHOT_PLAYER = 0,
+    MUGSHOT_VS_SYMBOL,
+};
+
+struct MugshotTable
+{
+	const u32* sprite;
+	const u32* pal;
+	u16 size;
+	s16 x;
+	s16 y;
 };
 
 #endif // GUARD_BATTLE_TRANSITION_H

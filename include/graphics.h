@@ -5067,6 +5067,52 @@ extern const u8 gMailTilemap_Fab[];
 extern const u8 gMailTiles_Retro[];
 extern const u8 gMailTilemap_Retro[];
 
+//MODIFIED MUGSHOT
+extern const u32 gVS_SpriteTiles[];
+extern const u32 gVSDummy_SpriteTiles[];
+extern const u32 gVS_SpritePal[];
+
+extern const u32 Silver_MugshotTiles[];
+extern const u32 Silver_MugshotPal[];
+
+//Big Mugshot Pals
+extern const u32 sBig_MugshotTiles[];
+extern const u16 sBig_MugshotPal[];
+extern const u16 sBig_MugshotMap[];
+extern const u16 Big_Mugshot_BlackPal[];
+extern const u16 Big_Mugshot_Dark_GrayPal[];
+extern const u16 Big_Mugshot_Dark_PurplePal[];
+extern const u16 Big_Mugshot_GreenPal[];
+extern const u16 Big_Mugshot_Icy_BluePal[];
+extern const u16 Big_Mugshot_Light_BrownPal[];
+extern const u16 Big_Mugshot_Light_GreenPal[];
+extern const u16 Big_Mugshot_Pearly_WhitePal[];
+extern const u16 Big_Mugshot_PinkPal[];
+extern const u16 Big_Mugshot_PurplePal[];
+extern const u16 Big_Mugshot_Royal_BluePal[];
+extern const u16 Big_Mugshot_Sky_BluePal[];
+extern const u16 Big_Mugshot_Steel_GrayPal[];
+extern const u16 Big_Mugshot_Yellow_GrayPal[];
+
+//DP/Two Bars Pals
+extern const u32 sDP_MugshotTiles[];
+extern const u16 sDP_MugshotPal[];
+extern const u16 sDP_MugshotMap[];
+extern const u16 DP_Mugshot_BlackPal[];
+extern const u16 DP_Mugshot_Dark_GrayPal[];
+extern const u16 DP_Mugshot_Dark_GreenPal[];
+extern const u16 DP_Mugshot_Dark_PurplePal[];
+extern const u16 DP_Mugshot_Dark_RedPal[];
+extern const u16 DP_Mugshot_Icy_BluePal[];
+extern const u16 DP_Mugshot_Light_BrownPal[];
+extern const u16 DP_Mugshot_Light_GreenPal[];
+extern const u16 DP_Mugshot_PinkPal[];
+extern const u16 DP_Mugshot_Royal_BluePal[];
+extern const u16 DP_Mugshot_Sky_BluePal[];
+extern const u16 DP_Mugshot_Steel_GrayPal[];
+extern const u16 DP_Mugshot_WhitePal[];
+extern const u16 DP_Mugshot_YellowPal[];
+
 extern const u8 gMonMarkingsMenu_Gfx[];
 extern const u16 gMonMarkingsMenu_Pal[];
 

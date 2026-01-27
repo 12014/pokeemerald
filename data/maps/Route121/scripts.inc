@@ -147,17 +147,20 @@ Route121_EventScript_Pat::
 	end
 
 Route121_EventScript_Marcel::
-	trainerbattle_single TRAINER_MARCEL, Route121_Text_MarcelIntro, Route121_Text_MarcelDefeat
+    setvar VAR_PRE_BATTLE_MUGSHOT_STYLE 0
+    setvar VAR_PRE_BATTLE_MUGSHOT_SPRITE 1
+	setvar VAR_MUGSHOT_ID, MUGSHOT_COOLTRAINER_M
+	trainerbattle_single TRAINER_CRISTIN_2, Route121_Text_MarcelIntro, Route121_Text_MarcelDefeat
 	msgbox Route121_Text_MarcelPostBattle, MSGBOX_AUTOCLOSE
 	end
 
 Route121_EventScript_Cristin::
-	trainerbattle_single TRAINER_CRISTIN_1, Route121_Text_CristinIntro, Route121_Text_CristinDefeat, Route121_EventScript_RegisterCristin
-	specialvar VAR_RESULT, ShouldTryRematchBattle
-	goto_if_eq VAR_RESULT, TRUE, Route121_EventScript_RematchCristin
-	msgbox Route121_Text_CristinPostBattle, MSGBOX_DEFAULT
+    setvar VAR_PRE_BATTLE_MUGSHOT_STYLE 1
+    setvar VAR_PRE_BATTLE_MUGSHOT_SPRITE 1
+	setvar VAR_MUGSHOT_ID, MUGSHOT_COOLTRAINER_F
+    trainerbattle_single TRAINER_CRISTIN_1, Route121_Text_CristinIntro, Route121_Text_CristinDefeat
+	msgbox Route121_Text_CristinPostBattle, MSGBOX_AUTOCLOSE
 	release
-	end
 
 Route121_EventScript_RegisterCristin::
 	special PlayerFaceTrainerAfterBattle

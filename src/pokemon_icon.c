@@ -1007,7 +1007,7 @@ static const u16 sSpriteImageSizes[3][4] =
         [SPRITE_SIZE(8x8)]   =  8 * 8  / 2,
         [SPRITE_SIZE(16x16)] = 16 * 16 / 2,
         [SPRITE_SIZE(32x32)] = 32 * 32 / 2,
-        [SPRITE_SIZE(64x64)] = 64 * 64 / 2,
+        [SPRITE_SIZE(64x64)] =0x80,
     },
     [ST_OAM_H_RECTANGLE] =
     {

@@ -1,6 +1,7 @@
 #include "global.h"
 #include "malloc.h"
 #include "battle.h"
+#include "battle_transition.h"//修改，新增战斗转场相关（定义）
 #include "data.h"
 #include "graphics.h"
 #include "constants/items.h"

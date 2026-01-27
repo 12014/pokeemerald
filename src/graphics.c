@@ -1526,6 +1526,52 @@ const u16 gBerryCrush_Crusher_Pal[] = INCBIN_U16("graphics/berry_crush/crusher.g
 const u32 gBerryCrush_Crusher_Gfx[] = INCBIN_U32("graphics/berry_crush/crusher.4bpp.lz");
 const u32 gBerryCrush_TextWindows_Tilemap[] = INCBIN_U32("graphics/berry_crush/text_windows.bin.lz");
 
+//MODIFIED BATTLE MUGSHOT
+const u32 gVS_SpriteTiles[] = INCBIN_U32("graphics/mod_mugshot/vs.4bpp.lz");
+const u32 gVSDummy_SpriteTiles[] = INCBIN_U32("graphics/mod_mugshot/vs_dummy.4bpp.lz");
+const u32 gVS_SpritePal[]= INCBIN_U32("graphics/mod_mugshot/vs.gbapal.lz");
+
+const u32 Silver_MugshotTiles[] = INCBIN_U32("graphics/mod_mugshot/silver.4bpp");
+const u32 Silver_MugshotPal[] = INCBIN_U32("graphics/mod_mugshot/silver.gbapal");
+
+//Big Mugshot Pals
+const u32 sBig_MugshotTiles[] = INCBIN_U32("graphics/mod_mugshot/big/big_tiles.4bpp");
+const u16 sBig_MugshotPal[] = INCBIN_U16("graphics/mod_mugshot/big/black.gbapal");
+const u16 sBig_MugshotMap[]= INCBIN_U16("graphics/mod_mugshot/big/big_map.bin");
+const u16 Big_Mugshot_BlackPal[] = INCBIN_U16("graphics/mod_mugshot/big/black.gbapal");
+const u16 Big_Mugshot_Dark_GrayPal[]  = INCBIN_U16("graphics/mod_mugshot/big/dark_grey.gbapal");
+const u16 Big_Mugshot_Dark_PurplePal[]  = INCBIN_U16("graphics/mod_mugshot/big/dark_purple.gbapal");
+const u16 Big_Mugshot_GreenPal[] = INCBIN_U16("graphics/mod_mugshot/big/green.gbapal");
+const u16 Big_Mugshot_Icy_BluePal[]  = INCBIN_U16("graphics/mod_mugshot/big/icy_blue.gbapal");
+const u16 Big_Mugshot_Light_BrownPal[] = INCBIN_U16("graphics/mod_mugshot/big/light_brown.gbapal");
+const u16 Big_Mugshot_Light_GreenPal[]  = INCBIN_U16("graphics/mod_mugshot/big/light_green.gbapal");
+const u16 Big_Mugshot_Pearly_WhitePal[] = INCBIN_U16("graphics/mod_mugshot/big/pearly_white.gbapal");
+const u16 Big_Mugshot_PinkPal[] = INCBIN_U16("graphics/mod_mugshot/big/pink.gbapal");
+const u16 Big_Mugshot_PurplePal[] = INCBIN_U16("graphics/mod_mugshot/big/purple.gbapal");
+const u16 Big_Mugshot_Royal_BluePal[] = INCBIN_U16("graphics/mod_mugshot/big/royal_blue.gbapal");
+const u16 Big_Mugshot_Sky_BluePal[] = INCBIN_U16("graphics/mod_mugshot/big/sky_blue.gbapal");
+const u16 Big_Mugshot_Steel_GrayPal[] = INCBIN_U16("graphics/mod_mugshot/big/steel_grey.gbapal");
+const u16 Big_Mugshot_Yellow_GrayPal[] = INCBIN_U16("graphics/mod_mugshot/big/yellow_grey.gbapal");
+
+//DP/Two Bars Pals
+const u32 sDP_MugshotTiles[] = INCBIN_U32("graphics/mod_mugshot/dp/dp_tiles.4bpp");
+const u16 sDP_MugshotPal[] = INCBIN_U16("graphics/mod_mugshot/dp/black.gbapal");
+const u16 sDP_MugshotMap[]= INCBIN_U16("graphics/mod_mugshot/dp/dp_map.bin");
+const u16 DP_Mugshot_BlackPal[] = INCBIN_U16("graphics/mod_mugshot/dp/black.gbapal");
+const u16 DP_Mugshot_Dark_GrayPal[] = INCBIN_U16("graphics/mod_mugshot/dp/dark_grey.gbapal");
+const u16 DP_Mugshot_Dark_GreenPal[] = INCBIN_U16("graphics/mod_mugshot/dp/dark_green.gbapal");
+const u16 DP_Mugshot_Dark_PurplePal[] = INCBIN_U16("graphics/mod_mugshot/dp/dark_purple.gbapal");
+const u16 DP_Mugshot_Dark_RedPal[] = INCBIN_U16("graphics/mod_mugshot/dp/dark_red.gbapal");
+const u16 DP_Mugshot_Icy_BluePal[] = INCBIN_U16("graphics/mod_mugshot/dp/icy_blue.gbapal");
+const u16 DP_Mugshot_Light_BrownPal[] = INCBIN_U16("graphics/mod_mugshot/dp/light_brown.gbapal");
+const u16 DP_Mugshot_Light_GreenPal[] = INCBIN_U16("graphics/mod_mugshot/dp/light_green.gbapal");
+const u16 DP_Mugshot_PinkPal[] = INCBIN_U16("graphics/mod_mugshot/dp/pink.gbapal");
+const u16 DP_Mugshot_Royal_BluePal[] = INCBIN_U16("graphics/mod_mugshot/dp/royal_blue.gbapal");
+const u16 DP_Mugshot_Sky_BluePal[] = INCBIN_U16("graphics/mod_mugshot/dp/sky_blue.gbapal");
+const u16 DP_Mugshot_Steel_GrayPal[] = INCBIN_U16("graphics/mod_mugshot/dp/steel_grey.gbapal");
+const u16 DP_Mugshot_WhitePal[] = INCBIN_U16("graphics/mod_mugshot/dp/white.gbapal");
+const u16 DP_Mugshot_YellowPal[] = INCBIN_U16("graphics/mod_mugshot/dp/yellow.gbapal");
+
 // random garbage at the end.
 static const u8 sEmpty3[0x54BAC] = {0};
 static const u8 sUnused1[]       = {0x0D, 0x00, 0x58, 0x02};
